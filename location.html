@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <title>OpenStreetMap with Google Maps v3 API</title>
+        <style type="text/css">
+            html, body, #map {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+        </style>
+    </head>
+    <body>
+
+
+
+      <table style='width: 1000px;'>
+        <tr>
+          <td style='vertical-align: top'>
+            <table>
+              <tr>
+                <td></td>
+                <td>
+                </td>
+              </tr>
+              <tr>
+                <td valign='top' width='400'>
+
+
+                  <table>
+                    <tr>
+                      <td>
+                        緯度
+                      </td>
+                      <td>
+                        <input id='latitude' readonly='readonly' type='text' >
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        経度
+                      </td>
+                      <td>
+                        <input id='longitude' readonly='readonly' type='text'>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        住所
+                      </td>
+                      <td>
+                        <input id='address' type='text'>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td></td>
+                      <td>
+                        <a id="address_search" href="#">住所から再検索</a>
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+                <td align='center' width='560'>
+                  <div id='map2' style='width:550px; height: 500px;'></div>
+                </td>
+              </tr>
+              <tr>
+                <td></td>
+                <td>
+                  <a style="float:right; text-align: center; width: 100px; height: 40px; font-size: 30px;" id="save" href="#">保存</a>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <script src='https://maps.googleapis.com/maps/api/js?sensor=false' type='text/javascript'></script>
+    <script>
+      //<![CDATA[
+    var openerDocument = window.opener.document;
+
+    // 緯度経度の入力がないか？
+    function isEmpty(obj) {
+      return (obj === null) || (obj === "")
+    }
+
+    function setLatAndLng(latlng) {
+      document.getElementById("latitude").value = latlng.lat();
+      document.getElementById("longitude").value = latlng.lng();
+    }
+
+    function setAddress(ad) {
+      document.getElementById("address").value = ad;
+    }
+
+    // 初期表示位置、住所を取得
+    // retval: [pos, address]
+    function getInitialPosAndAddress() {
+      var address = openerDocument.getElementById('address').value;
+      var latitude = openerDocument.getElementById('latitude').value;
+      var longitude = openerDocument.getElementById('longitude').value;
+
+      if (isEmpty(latitude) || isEmpty(longitude)) {
+        // 初期値は東京タワー
+        latitude = 35.65858;
+        longitude = 139.745433;
+        if (address == "") {
+          address = "東京タワー";
+        }
+      }
+
+      var pos = new google.maps.LatLng(latitude, longitude);
+      return [pos, address];
+    }
+
+    // 地図をセットアップする。
+    // * 地図を表示
+    // * イベントハンドラを設定
+    //
+    //  retval: [map, marker]
+    function setupGoogleMap(mapNode, initialPos, initialAddress) {
+      // マップタイプに、OpenStreetMapのみ有効にする
+      // googlemapのタイルサーバは、無償版はhttpのみサポートなので、
+      // OpenStreetMapを利用する。
+      // ただし、OpenStreetMapのポリシーで、通信料多いとブロックするよ、と
+      // なってるので、そのときはYahoo MapかGoogle Mapの有料版を
+      // 使う必要がある。
+      var mapTypeIds = ["OSM"];
+
+      // マップを初期表示
+      var map = new google.maps.Map(mapNode, {
+        center: initialPos,
+        zoom: 16,
+        mapTypeId: "OSM",
+        mapTypeControlOptions: {
+          mapTypeIds: mapTypeIds
+        },
+        streetViewControl: false
+      });
+
+      // OpenStreetMapのタイルサーバを指定。OpenStreetMapのhttpsURLを指定している。
+      map.mapTypes.set("OSM", new google.maps.ImageMapType({
+        getTileUrl: function(coord, zoom) {
+          return "https://a.tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+        },
+        tileSize: new google.maps.Size(256, 256),
+        name: "OpenStreetMap",
+        maxZoom: 18
+      }));
+
+      // 地図の中心のマーカーを表示。初期表示位置として、地図の中心をセット。
+      var marker = new google.maps.Marker({
+        position: map.getCenter(),
+        map: map,
+        title: '物件位置',
+        icon: {
+          path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW, // 下向き矢印図形を設定
+          scale: 5,
+          strokeColor: '#FF0000',
+          fillColor: '#FF0000',
+          fillOpacity: 0.5,
+          strokeWeight: 2
+        }
+      });
+
+      // 中心点が変更された時のイベントリスナを設定。
+      google.maps.event.addListener(map, 'center_changed', function(){
+        var pos = map.getCenter();
+        marker.setPosition(pos);
+        setLatAndLng(pos);
+      });
+
+      // 住所から検索機能
+      document.getElementById("address_search").addEventListener('click', function() {
+        var query_word = document.getElementById("address").value;
+        var geocoder = new google.maps.Geocoder();
+        geocoder.geocode(
+          {
+            'address': query_word,
+            'region': 'jp'
+          },
+          function(results, status){
+            if(status==google.maps.GeocoderStatus.OK && results.length > 0){
+              // 検索結果座標をして、地図の中心をセットする
+              var pos = results[0].geometry.location;
+              map.setCenter(pos);
+            } else {
+              alert('一致する住所が見つかりませんでした');
+            }
+          }
+        );
+      });
+
+      return [map, marker];
+    }
+
+    var pos_and_address = getInitialPosAndAddress();
+    console.log(pos_and_address);
+    var initialPos = pos_and_address[0];
+    var initialAddress = pos_and_address[1];
+    setLatAndLng(initialPos);
+    setAddress(initialAddress);
+    var mapNode = document.getElementById("map2");
+    var map_and_marker = setupGoogleMap(mapNode, initialPos, initialAddress);
+    var map = map_and_marker[0];
+    var marker = map_and_marker[1];
+
+    // 保存ボタン押下時に、緯度経度を親ウインドウにセットし、地図ウインドウを閉じる
+    document.getElementById("save").addEventListener("click", function() {
+      openerDocument.getElementById('latitude').value = document.getElementById('latitude').value;
+      openerDocument.getElementById('longitude').value = document.getElementById('longitude').value;
+      window.close();
+    });
+    //]]>
+    </script>
+
+
+  </body>
+</html>
+
